@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "RAM Plus A17",
+    "slug": "ramplusa17",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "ramplusa17",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.helios.ramplusa17",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.helios.ramplusa17",
+      "permissions": [],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#3B6FE0",
+          "image": "./assets/images/icon.png",
+          "imageWidth": 120
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
