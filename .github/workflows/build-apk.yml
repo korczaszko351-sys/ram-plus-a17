@@ -1,0 +1,97 @@
+name: Build APK
+
+# Buduje instalowalny plik APK bez konta Expo — wszystko po stronie GitHuba.
+# Uruchamia sie recznie (Actions -> Build APK -> Run workflow) albo po tagu v*.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Pobierz repozytorium
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Zaleznosci
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "package-lock.json obecny -> npm ci"
+            npm ci --no-audit --no-fund
+          else
+            echo "brak package-lock.json -> npm install"
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Wygeneruj projekt natywny (Expo prebuild)
+        env:
+          EXPO_NO_TELEMETRY: '1'
+          CI: '1'
+        run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Zbuduj APK
+        working-directory: android
+        env:
+          GRADLE_OPTS: '-Xmx4g -Dorg.gradle.daemon=false'
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace || {
+            echo "::warning::assembleRelease nie powiodlo sie - probuje assembleDebug"
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          }
+
+      - name: Znajdz plik APK
+        id: find
+        run: |
+          APK=$(find android/app/build/outputs/apk -name '*.apk' | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::Nie znaleziono zadnego pliku .apk"
+            find android/app/build/outputs -type f | head -50
+            exit 1
+          fi
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$APK")" >> "$GITHUB_OUTPUT"
+          ls -lh "$APK"
+
+      - name: Wyslij APK jako artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ram-plus-a17-apk
+          path: ${{ steps.find.outputs.path }}
+          retention-days: 90
+
+      - name: Dodaj APK do Release (tylko dla tagu)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find.outputs.path }}
+          generate_release_notes: true
